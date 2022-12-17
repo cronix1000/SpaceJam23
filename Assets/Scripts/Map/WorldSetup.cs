@@ -1,3 +1,4 @@
+using CodeMonkey.Utils;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -18,76 +19,82 @@ public class WorldSetup : MonoBehaviour
     public int seed;
     public Vector2 offset;
 
-    public TerrainType[] regions;
-    private Grid<float> gridValues;
-    private Grid<GameObject> gridTiles;
+    private CodeGrid<float> gridValues;
+    private CodeGrid<GameObject> gridTiles;
     private Transform tileHolder;
+
+    private Color[] color;
+    public new Renderer renderer;
+    public bool autoUpdate;
+
+    //public Terrain[] terrain;
+    public Terrain[] terrains;
+    public Biome[] biomes;
+    public float[,] noiseMap;
+    Noise noiseMapFunc = new Noise();
+
+
     // Start is called before the first frame update
     public void SetupGrid()
     {
-        float[,] noiseMap = Noise.GenerateNoiseMap(height, width, seed, noiseScale, octaves, persistance, lacunarity, offset);
+        noiseMap = noiseMapFunc.CreateNoiseMap(height, width, seed, noiseScale, octaves, persistance, lacunarity, offset);
 
-        gridValues = new Grid<float>(height, width, 10f, Vector3.zero);
-        for (int x = 0; x < gridValues.width; x++)
-        {
-            for (int y = 0; y < gridValues.height; y++)
-            {
-                gridValues.SetValue(x, y, noiseMap[x, y]);
-            }
-        }
-        
-        gridTiles = new Grid<GameObject>(height, width, 10f, Vector3.zero);
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                switch (gridValues.GetValue(x, y))
-                {
-                    case float n when (n <= 0.05f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/DeepWater"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.15f && n <= 0.2f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/Water"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.2f && n <= 0.25f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/ShallowWater"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.25f && n <= 0.4f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/ShallowWaterSand"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.4f && n <= 0.6f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/Sand"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.6f && n <= 0.8f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/Grass"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                    case float n when (n > 0.8f && n <= 1f):
-                        gridTiles.SetValue(x, y, Instantiate(Resources.Load("Prefabs/GrassDark"), new Vector3(x, y, 0), Quaternion.identity) as GameObject);
-                        break;
-                }
-            }
-        }
+        gridValues = new CodeGrid<float>(height, width, 10f, new Vector3(-width/2 * 10, -height/2 * 10, 0), () => 0.00f);
+
+      
 
     }
     void WorldSetupMap()
     {
-        tileHolder = new GameObject("Board").transform;
         SetupGrid();
-        for (int x = 0; x < width; x++)
+        NoiseToTexture();
+    }
+
+    void NoiseToTexture()
+    {
+        float[,] noiseArr = noiseMapFunc.CreateNoiseMap(width, height, seed, noiseScale, octaves, persistance, lacunarity, offset);
+        for (int y = 0; y < gridValues.GetHeight() ; y+=10)
         {
-            for (int y = 0; y < height; y++)
+            for (int x = 0; x < gridValues.GetWidth(); x+=10)
             {
-                GameObject toInstantiate;
-
-                toInstantiate = gridTiles.GetValue(x, y);
-
-                //Instantiates the object 
-                GameObject instance = Instantiate(toInstantiate, new Vector3(x, y, 0f), Quaternion.identity) as GameObject;
-
-                //Sets the object being used to the holder e.i boardHolder to avoid having messy hierarchy
-                instance.transform.SetParent(tileHolder);
-
+                
             }
+        } 
+        color = new Color[width * height];
+        Texture2D texture = new Texture2D(width, height);
+        Color[] colourMap = new Color[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float currentHeight = noiseArr[x, y];
+                gridValues.SetValue(x, y, currentHeight);
+                for (int i = 0; i < terrains.Length; i++)
+                {
+                    if (currentHeight <= terrains[i].height)
+                    {
+                        colourMap[y * width + x] = terrains[i].color;
+                        break;
+                    }
+                }
+            }
+        }
+
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.SetPixels(colourMap);
+        texture.Apply();
+
+        renderer.sharedMaterial.mainTexture = texture;
+        renderer.transform.localScale = new Vector3(width, height,height );
+    }
+
+    public void Update()
+    {
+        if (Input.GetMouseButtonDown(1))
+        {
+
+            Debug.Log(gridValues.GetValue(UtilsClass.GetMouseWorldPosition()));
         }
     }
 
@@ -95,8 +102,26 @@ public class WorldSetup : MonoBehaviour
     {
         WorldSetupMap();
     }
-
-
 }
+
+[System.Serializable]
+public struct Terrain
+{
+    public string terrainType;
+    public float height;
+    public Color color;
+}
+[System.Serializable]
+public struct Biome
+{
+    public string biomeName;
+    public Terrain[] terrains;
+}
+
+
+
+
+
+
 
 

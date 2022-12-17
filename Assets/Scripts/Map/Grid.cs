@@ -2,23 +2,40 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using CodeMonkey.Utils;
-public class Grid<TGidObject>
+using System;
+
+public class CodeGrid<TGridObject>
 {
-    public int width { get; }
-    public int height { get; }
+    public event EventHandler<OnGridValueChangedEventArgs> OnGridValueChanged;
+    public class OnGridValueChangedEventArgs : EventArgs
+    {
+        public int x;
+        public int y;
+    }
+
+    private int width;
+    private int height;
     private float cellSize;
     private Vector3 originPosition;
-    private TGidObject[,] gridArray;
+    private TGridObject[,] gridArray;
     private TextMesh[,] debugTestArray;
 
-    public Grid(int width, int height, float cellSize, Vector3 originPosition)
+    public CodeGrid(int width, int height, float cellSize, Vector3 originPosition, Func<TGridObject> createGridObject)
     {
         this.width = width;
         this.height = height;
         this.cellSize = cellSize;
         this.originPosition = originPosition;
 
-        gridArray = new TGidObject[width, height];
+        gridArray = new TGridObject[width, height];
+
+        for (int x = 0; x < gridArray.GetLength(0); x++)
+        {
+            for (int y = 0; y < gridArray.GetLength(1); y++)
+            {
+                gridArray[x, y] = createGridObject();
+            }
+        }
 
 
         bool showDebug = true;
@@ -39,35 +56,49 @@ public class Grid<TGidObject>
 
         }
     }
+    public int GetWidth()
+    {
+        return width;
+    }
 
-    private Vector3 GetWorldPosition(int x, int y)
+    public int GetHeight()
+    {
+        return height;
+    }
+
+    public float GetCellSize()
+    {
+        return cellSize;
+    }
+    public Vector3 GetWorldPosition(int x, int y)
     {
         return new Vector3(x, y) * cellSize + originPosition;
     }
 
-    private void GetXY(Vector3 worldPosition, out int x, out int y)
+    public void GetXY(Vector3 worldPosition, out int x, out int y)
     {
         x = Mathf.FloorToInt((worldPosition - originPosition).x / cellSize);
         y = Mathf.FloorToInt((worldPosition - originPosition).y / cellSize);
     }
 
-    public void SetValue(int x, int y, TGidObject value)
+    public void SetValue(int x, int y, TGridObject value)
     {
         if (x >= 0 && y >= 0 && x < width && y < height)
         {
             gridArray[x, y] = value;
-            debugTestArray[x, y].text = gridArray[x, y].ToString();
+
+            //debugTestArray[x, y].text = gridArray[x, y].ToString();
         }
     }
 
-    public void SetValue(Vector3 worldPosition, TGidObject value)
+    public void SetValue(Vector3 worldPosition, TGridObject value)
     {
         int x, y;
         GetXY(worldPosition, out x, out y);
         SetValue(x, y, value);
     }
 
-    public TGidObject GetValue(int x, int y)
+    public TGridObject GetValue(int x, int y)
     {
         if (x >= 0 && y >= 0 && x < width && y < height)
         {
@@ -75,12 +106,12 @@ public class Grid<TGidObject>
         }
         else
         {
-            return default(TGidObject);
+            return default(TGridObject);
         }
     }
 
 
-    public TGidObject GetValue(Vector3 worldPosition)
+    public TGridObject GetValue(Vector3 worldPosition)
     {
         int x, y;
         GetXY(worldPosition, out x, out y);
